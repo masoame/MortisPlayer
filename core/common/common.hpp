@@ -39,7 +39,7 @@ namespace common
 	using Mortis::BT::StaticFunctorWrapper;
 	using Mortis::Expected;
 	using Mortis::UnExpected;
-	using Mortis::MultiEnum;
+	//using Mortis::MultiEnum;
 	//管理内存的智能指针
 	using ScopeAVPacketPtr = ScopeHandle<AVPacket, StaticFunctorWrapper<av_packet_free>>;
 	using ScopeAVCodecContextPtr = ScopeHandle<AVCodecContext, StaticFunctorWrapper<avcodec_free_context>>;
