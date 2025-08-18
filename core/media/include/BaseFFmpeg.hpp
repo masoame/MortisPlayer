@@ -1,11 +1,9 @@
 ﻿#pragma once
-#include<common.hpp>
+#include<media.hpp>
 
 namespace FFmpegLayer
 {
 	using namespace common;
-
-
 
 	//函数回调类型
 	using insert_callback_type = std::function<void(AVFrame*&, char*& buf)>;
