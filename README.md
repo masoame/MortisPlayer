@@ -1,0 +1,2 @@
+# MortisPlayer
+因为之前holoplayer写的播放器太烂了，所以重新写了一个播放器，命名为MortisPlayer。
