@@ -1,4 +1,4 @@
-set(Qt6_ROOT "D:/Qt/6.9.0/msvc2022_64")
+set(Qt6_ROOT "C:/Qt/6.9.0/msvc2022_64")
 set(Qt6_DIR "${Qt6_ROOT}/lib/cmake/Qt6") 
 
 set(ENV{http_proxy} "http://127.0.0.1:10808")
