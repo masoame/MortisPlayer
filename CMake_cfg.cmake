@@ -10,13 +10,12 @@ else()
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/out/${CMAKE_CXX_COMPILER_ID}-x64-${CMAKE_BUILD_TYPE}/lib)
 endif()
 
-
 if(MSVC)
     if (POLICY CMP0141)
       cmake_policy(SET CMP0141 NEW)
       set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
     endif()
-    set(CMAKE_CXX_FLAGS "/EHsc /W4 /WX /experimental:module")
+    set(CMAKE_CXX_FLAGS "/EHsc /W4 /WX")
 
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Zi /fsanitize=address")
     set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /DEBUG")

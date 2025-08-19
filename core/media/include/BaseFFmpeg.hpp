@@ -1,11 +1,9 @@
 ﻿#pragma once
-#include<common.hpp>
+#include<media.hpp>
 
 namespace FFmpegLayer
 {
 	using namespace common;
-
-
 
 	//函数回调类型
 	using insert_callback_type = std::function<void(AVFrame*&, char*& buf)>;
@@ -55,7 +53,7 @@ namespace FFmpegLayer
 		~PlayTool();
 
 		//打开流
-        Expected<> open(std::string_view srcUrl, std::string_view dstUrl = {}, unsigned char type = in | video | audio);
+        bool open(std::string_view srcUrl, std::string_view dstUrl = {}, unsigned char type = in | video | audio);
 		//初始化各种编解码器
 		RESULT init_decode(AVMediaType type);
 		//初始化编码器

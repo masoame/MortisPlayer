@@ -108,8 +108,7 @@ void HoloMainWindow::StartOpenFile()
     if (filepath.isEmpty() || filepath == "") 
         return;
    
-    const auto res = drivewindows.play_tool.open(filepath.toStdString().c_str());
-    if (res.has_value() == false) {
+    if (drivewindows.play_tool.open(filepath.toStdString().c_str()) == false) {
         return;
     }
 

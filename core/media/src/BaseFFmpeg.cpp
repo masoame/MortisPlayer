@@ -24,7 +24,7 @@ namespace FFmpegLayer
 
 	PlayTool::PlayTool(std::string_view srcUrl, std::string_view dstUrl, unsigned char type /*= in | video | audio*/)
 	{
-        if (open(srcUrl, dstUrl, type).has_value() == false) {
+        if (open(srcUrl, dstUrl, type) == false) {
 			throw std::runtime_error("PlayTool open error!!!");
         }
 	}
@@ -39,20 +39,18 @@ namespace FFmpegLayer
     }
 
 
-    Expected<> PlayTool::open(std::string_view srcUrl, std::string_view dstUrl, unsigned char type)
+    bool PlayTool::open(std::string_view srcUrl, std::string_view dstUrl, unsigned char type)
     {
         this->close();
         if (type & in)
         {
-            _p_avfctx_input = avformat_alloc_context();
-            if (avformat_open_input(&_p_avfctx_input, srcUrl.data(), nullptr, nullptr)) {
-                return UnExpected("avformat_open_input error!!!");
+            auto ex_avfctx_input = media::OpenFFmpegStream(srcUrl, true);
+            if (ex_avfctx_input.has_value()) {
+                _p_avfctx_input = std::move(ex_avfctx_input.value());
             }
-            if (avformat_find_stream_info(_p_avfctx_input, nullptr) < 0) {
-                return UnExpected("avformat_find_stream_info error!!!");
+            else {
+				throw std::runtime_error(ex_avfctx_input.error().data());
             }
-
-            av_dump_format(_p_avfctx_input, 0, srcUrl.data(), false);
 
             if (type & video) {
                 init_decode(AVMEDIA_TYPE_VIDEO);
