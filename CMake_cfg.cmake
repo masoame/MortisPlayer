@@ -10,7 +10,6 @@ else()
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/out/${CMAKE_CXX_COMPILER_ID}-x64-${CMAKE_BUILD_TYPE}/lib)
 endif()
 
-
 if(MSVC)
     if (POLICY CMP0141)
       cmake_policy(SET CMP0141 NEW)

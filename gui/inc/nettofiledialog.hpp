@@ -5,7 +5,7 @@
 #include <QDialog>
 #include <map>
 namespace Ui {
-class NetToFileDialog;
+	class NetToFileDialog;
 }
 
 class NetToFileDialog : public QDialog
