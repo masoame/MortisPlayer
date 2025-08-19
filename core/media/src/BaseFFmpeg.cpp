@@ -22,26 +22,30 @@ namespace FFmpegLayer
         AV_SAMPLE_FMT_NONE
     };
 
-	PlayTool::PlayTool(std::string_view srcUrl, std::string_view dstUrl, unsigned char type /*= in | video | audio*/)
+	PlayTool::PlaySreamContext::PlaySreamContext(ScopeAVCodecContextPtr&& codecCtx, std::size_t frameSize)
+        : _frame_queue(frameSize)
 	{
-        if (open(srcUrl, dstUrl, type) == false) {
-			throw std::runtime_error("PlayTool open error!!!");
-        }
+        _codec_ctx = std::move(codecCtx);
 	}
 
-	PlayTool& PlayTool::Instance() {
-        static PlayTool instance;
-        return instance;
-    }
+	PlayTool::PlaySreamContext::PlaySreamContext(std::size_t frameSize)
+        : PlaySreamContext({},frameSize) { }
 
-    PlayTool::~PlayTool(){
+	PlayTool::PlaySreamContext::PlaySreamContext()
+		: PlaySreamContext(0) { }
+
+	PlayTool::PlayTool() :
+        _play_stream_ctx{ }
+	{ }
+
+	PlayTool::~PlayTool() {
         close();
     }
 
 
     bool PlayTool::open(std::string_view srcUrl, std::string_view dstUrl, unsigned char type)
     {
-        this->close();
+        close();
         if (type & in)
         {
             auto ex_avfctx_input = media::OpenFFmpegStream(srcUrl, true);
@@ -53,50 +57,43 @@ namespace FFmpegLayer
             }
 
             if (type & video) {
-                init_decode(AVMEDIA_TYPE_VIDEO);
+                initPlayStreamCtx(AVMEDIA_TYPE_VIDEO, 12);
             }
             if (type & audio) {
-				init_decode(AVMEDIA_TYPE_AUDIO);
+                initPlayStreamCtx(AVMEDIA_TYPE_AUDIO, 50);
             }
+            return true;
         }
         if (type & out)
         {
+            // 未完成重写
             _p_avfctx_output = avformat_alloc_context();
             if (avformat_alloc_output_context2(&_p_avfctx_output, nullptr, dstUrl.data(), nullptr) < 0) {
 
             };
+            return true;
         }
-        return {};
+        return false;
     }
 
-	RESULT PlayTool::init_decode(AVMediaType type)
+	RESULT PlayTool::initPlayStreamCtx(AVMediaType mediaType,std::size_t queueSize)
     {
+        auto pStreamIndex = std::make_unique<int>();
 
-        int index = av_find_best_stream(_p_avfctx_input, type, -1, -1, NULL, 0);
-        if (index != AVERROR_STREAM_NOT_FOUND) { 
-            AVStreamIndexToType[index] = type; 
-            AVTypeToStreamIndex[type] = index; 
-        }
-        _decode_ctx_arr[type] = avcodec_alloc_context3(nullptr);
-        if (_decode_ctx_arr[type] == nullptr) {
-            return ALLOC_ERROR;
-        }
-        if (avcodec_parameters_to_context(_decode_ctx_arr[type], _p_avfctx_input->streams[index]->codecpar) < 0) {
-            return ARGS_ERROR;
-        }
-        const AVCodec* codec = avcodec_find_decoder(_decode_ctx_arr[type]->codec_id);
-        if (avcodec_open2(_decode_ctx_arr[type], codec, NULL)) {
-            return OPEN_ERROR;
-        }
-        secBaseTime[type] = av_q2d(_p_avfctx_input->streams[AVTypeToStreamIndex[type]]->time_base);
+        auto& ref_ctx = _play_stream_ctx[mediaType];
+        ref_ctx._codec_ctx = media::CreateDecodecCtx(_p_avfctx_input, mediaType, pStreamIndex).value_or(nullptr);
+		ref_ctx._index = *pStreamIndex;
+        ref_ctx._secBaseTime = av_q2d(_p_avfctx_input->streams[*pStreamIndex]->time_base);
+		ref_ctx._frame_queue.setMaxSize(queueSize);
 
+		_stream_index_to_type[*pStreamIndex] = mediaType;
         return SUCCESS;
     }
 
 
     RESULT PlayTool::init_swr()
     {
-        ScopeAVCodecContextPtr& audio_ctx = _decode_ctx_arr[AVMEDIA_TYPE_AUDIO];
+        ScopeAVCodecContextPtr& audio_ctx = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._codec_ctx;
 
         AVSampleFormat* format;
         avcodec_get_supported_config(audio_ctx, nullptr, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0,(const void**)&format, nullptr);
@@ -136,18 +133,18 @@ namespace FFmpegLayer
         return SUCCESS;
     }
 
-    inline void PlayTool::insert_queue(AVMediaType index, ScopeAVFramePtr&& avf) noexcept
+    inline void PlayTool::insert_queue(AVMediaType meidaType, ScopeAVFramePtr&& avf) noexcept
     {
         char* userdata = nullptr;
-        if (insert_callback[index] != nullptr)
-            insert_callback[index](avf, userdata);
+        if (insert_callback[meidaType] != nullptr)
+            insert_callback[meidaType](avf, userdata);
 
-        FrameQueue[index].emplace(std::move(avf), userdata);
+        _play_stream_ctx[meidaType]._frame_queue.emplace(std::move(avf), userdata);
 
         avf = av_frame_alloc();
     }
 
-    RESULT PlayTool::sws_scale_420P(AVFrame*& data)
+    RESULT PlayTool::sws_scale_420P(ScopeAVFramePtr& data)
     {
 
         AVFrame* dst = av_frame_alloc();
@@ -158,25 +155,28 @@ namespace FFmpegLayer
 
         dst->pts = data->pts;
         av_frame_unref(data);
-        data = dst;
+        data.reset(dst);
         return SUCCESS;
     }
 
     void PlayTool::seek_time(int64_t sec) noexcept
     {
+		auto& audio_frame_queue = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
+		auto& video_frame_queue = _play_stream_ctx[AVMEDIA_TYPE_VIDEO]._frame_queue;
+
         if(_p_avfctx_input == nullptr)
             return;
         std::lock_guard lock(decode_mutex);
 
         {
-            std::scoped_lock lock_queue(PacketQueue._mtx, FrameQueue[AVMEDIA_TYPE_AUDIO]._mtx, FrameQueue[AVMEDIA_TYPE_VIDEO]._mtx);
+            std::scoped_lock lock_queue(PacketQueue._mtx, audio_frame_queue._mtx, video_frame_queue._mtx);
 
             PacketQueue.clear();
-            FrameQueue[AVMEDIA_TYPE_AUDIO].clear();
-            FrameQueue[AVMEDIA_TYPE_VIDEO].clear();
+            audio_frame_queue.clear();
+            video_frame_queue.clear();
 
-            avcodec_flush_buffers(_decode_ctx_arr[AVMEDIA_TYPE_VIDEO]);
-            avcodec_flush_buffers(_decode_ctx_arr[AVMEDIA_TYPE_AUDIO]);
+            avcodec_flush_buffers(_play_stream_ctx[AVMEDIA_TYPE_VIDEO]._codec_ctx);
+            avcodec_flush_buffers(_play_stream_ctx[AVMEDIA_TYPE_AUDIO]._codec_ctx);
 
             if (avformat_seek_file(_p_avfctx_input, -1, INT64_MIN, sec * AV_TIME_BASE, sec * AV_TIME_BASE, AVSEEK_FLAG_BACKWARD) < 0) {
                 spdlog::error("seek failed");
@@ -187,8 +187,8 @@ namespace FFmpegLayer
         }
 
         PacketQueue._cv_could_push.notify_one();
-        FrameQueue[AVMEDIA_TYPE_AUDIO]._cv_could_push.notify_one();
-        FrameQueue[AVMEDIA_TYPE_VIDEO]._cv_could_push.notify_one();
+        audio_frame_queue._cv_could_push.notify_one();
+        video_frame_queue._cv_could_push.notify_one();
 
     }
 
@@ -201,24 +201,33 @@ namespace FFmpegLayer
         if (ThrPlay.joinable()) 
             ThrPlay.request_stop();
 
+        auto& play_stream_video_ctx = _play_stream_ctx[AVMEDIA_TYPE_VIDEO]._frame_queue;
+        auto& play_stream_audio_ctx = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
+
         PacketQueue._is_closed = true;
-        FrameQueue[AVMEDIA_TYPE_AUDIO]._is_closed = true;
-        FrameQueue[AVMEDIA_TYPE_VIDEO]._is_closed = true;
+        play_stream_video_ctx._is_closed = true;
+        play_stream_audio_ctx._is_closed = true;
 
         PacketQueue._cv_could_push.notify_all();
         PacketQueue._cv_could_pop.notify_all();
-        FrameQueue[AVMEDIA_TYPE_AUDIO]._cv_could_push.notify_all();
-        FrameQueue[AVMEDIA_TYPE_AUDIO]._cv_could_pop.notify_all();
-        FrameQueue[AVMEDIA_TYPE_VIDEO]._cv_could_push.notify_all();
-        FrameQueue[AVMEDIA_TYPE_VIDEO]._cv_could_pop.notify_all();
+        play_stream_audio_ctx._cv_could_push.notify_all();
+        play_stream_audio_ctx._cv_could_pop.notify_all();
+        play_stream_video_ctx._cv_could_push.notify_all();
+        play_stream_video_ctx._cv_could_pop.notify_all();
 
-        if (ThrRead.joinable()) ThrRead.join();
-        if (ThrDecode.joinable()) ThrDecode.join();
-        if (ThrPlay.joinable()) ThrPlay.join();
+        if (ThrRead.joinable()) {
+            ThrRead.join();
+        }
+        if (ThrDecode.joinable()) {
+            ThrDecode.join();
+        }
+        if (ThrPlay.joinable()) {
+            ThrPlay.join();
+        }
 
         PacketQueue._is_closed = false;
-        FrameQueue[AVMEDIA_TYPE_AUDIO]._is_closed = false;
-        FrameQueue[AVMEDIA_TYPE_VIDEO]._is_closed = false;
+        play_stream_audio_ctx._is_closed = false;
+        play_stream_video_ctx._is_closed = false;
     }
 
 
@@ -229,15 +238,6 @@ namespace FFmpegLayer
                 std::stop_callback end_read_callback(st, [this]()->void {
                     spdlog::info("success exit read thread");
                 });
-
-#if _DEBUG
-                //std::once_flag _once_flag;
-                ////线程结束时，打印使用RAII
-                //std::unique_ptr<void()> a([] {
-
-                //    });
-#endif
-
 
                 int err = AVERROR(EAGAIN);
                 while (st.stop_requested() == false)
@@ -255,7 +255,7 @@ namespace FFmpegLayer
                     PacketQueue.push(std::move(avp));
                 }
             });
-        spdlog::info("create read thread id: ");
+        spdlog::info(std::format("create read thread id: {}", ThrRead.get_id()));
         return SUCCESS;
     }
 
@@ -285,20 +285,20 @@ namespace FFmpegLayer
                         continue;
                     }
 
-                    AVMediaType index = AVStreamIndexToType[avp->stream_index];
-                    if (index == AVMEDIA_TYPE_VIDEO || index == AVMEDIA_TYPE_AUDIO)
+                    AVMediaType media_type = _stream_index_to_type[avp->stream_index];
+                    if (media_type == AVMEDIA_TYPE_VIDEO || media_type == AVMEDIA_TYPE_AUDIO)
                     {
                         {
                             std::unique_lock lock(this->decode_mutex);
-                            while ((err = avcodec_send_packet(_decode_ctx_arr[index], avp)) == AVERROR(EAGAIN))
+                            while ((err = avcodec_send_packet(_play_stream_ctx[media_type]._codec_ctx, avp)) == AVERROR(EAGAIN))
                                 std::this_thread::sleep_for(1ms);
                         }
 
 
                         while (st.stop_requested() == false)
                         {
-                            err = avcodec_receive_frame(_decode_ctx_arr[index], avf);
-                            if (err == 0)insert_queue(index,std::move(avf));
+                            err = avcodec_receive_frame(_play_stream_ctx[media_type]._codec_ctx, avf);
+                            if (err == 0)insert_queue(media_type,std::move(avf));
                             else if (err == AVERROR(EAGAIN)) break;
                             else if (err == AVERROR_EOF) continue;
                             else return;
@@ -307,7 +307,7 @@ namespace FFmpegLayer
                     else {}
                 }
             });
-       spdlog::info(format("create decode thread id: ", ThrDecode.get_id()));
+       spdlog::info(std::format("create decode thread id: {}", ThrDecode.get_id()));
         return SUCCESS;
     }
 
@@ -322,6 +322,9 @@ namespace FFmpegLayer
 
         return RESULT();
     }
+
+
+
 }
 
 

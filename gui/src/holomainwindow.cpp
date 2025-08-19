@@ -73,7 +73,7 @@ void HoloMainWindow::timerEvent([[maybe_unused]] QTimerEvent * event)
     auto& audio_ptr = this->drivewindows.play_tool.avframe_work[AVMEDIA_TYPE_AUDIO].first;
     if(audio_ptr==nullptr)return;
     if(ui->time_slider->isSliderDown() == false){
-        int sec=audio_ptr->pts * this->drivewindows.play_tool.secBaseTime[AVMEDIA_TYPE_AUDIO];
+        int sec=audio_ptr->pts * this->drivewindows.play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._secBaseTime;
         ui->timestamp->setText(QString::asprintf("%02d:%02d", sec / 60, sec % 60));
         ui->time_slider->setValue(sec);
     }

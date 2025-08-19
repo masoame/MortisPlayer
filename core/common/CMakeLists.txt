@@ -7,7 +7,6 @@ target_link_libraries(${PROJECT_NAME} INTERFACE
 	Mortis::Lib
 	CURL::libcurl
 	SDL2::SDL2
-	spdlog::spdlog
 	ffmpeg
 )
 

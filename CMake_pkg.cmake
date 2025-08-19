@@ -15,15 +15,14 @@ FetchContent_MakeAvailable(Mortis)
 
 message("---------------------------------start_curl---------------------------------")
 
-#set(OPENSSL_ROOT_DIR "D:/code/make/openssl")
-#find_package(OpenSSL REQUIRED COMPONENTS Crypto SSL )
+
 
 
 FetchContent_Declare(
     curl
     GIT_REPOSITORY  https://github.com/curl/curl.git
     GIT_TAG curl-8_11_0
-    CMAKE_ARGS -DCMAKE_USE_OPENSSL=ON
+    CMAKE_ARGS -DCMAKE_USE_OPENSSL=OFF
 )
 
 FetchContent_MakeAvailable(curl)

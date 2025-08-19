@@ -45,10 +45,6 @@ namespace SDLLayer
 		{ AV_PIX_FMT_NONE,           SDL_PIXELFORMAT_UNKNOWN }
 	};
 
-	DriveWindow& DriveWindow::Instance() {
-		static DriveWindow instance; 
-		return instance;
-	}
 	DriveWindow::~DriveWindow()
 	{
 
@@ -77,23 +73,23 @@ namespace SDLLayer
 		play_tool.ThrPlay = std::jthread([&](std::stop_token st)->void
 			{
 				//退出执行
-				std::stop_callback scb(st, [this]()
-					{
-						std::osyncstream{ std::cout } << "exit player thread" << std::endl;
-					});
+				std::stop_callback scb(st, [this]() {
+					spdlog::info("exit player thread");
+				});
 
 				//工作元素引用
 				auto& work_data = play_tool.avframe_work[AVMEDIA_TYPE_VIDEO];
 				auto& frame = play_tool.avframe_work[AVMEDIA_TYPE_VIDEO].first;
 				auto& audio_ptr = play_tool.avframe_work[AVMEDIA_TYPE_AUDIO];
 
+				auto& play_stream_ctx = play_tool._play_stream_ctx;
 				//时间基准
-				auto& secBaseVideo = play_tool.secBaseTime[AVMEDIA_TYPE_VIDEO];
-				auto& secBaseAudio = play_tool.secBaseTime[AVMEDIA_TYPE_AUDIO];
+				auto& secBaseVideo = play_stream_ctx[AVMEDIA_TYPE_VIDEO]._secBaseTime;
+				auto& secBaseAudio = play_stream_ctx[AVMEDIA_TYPE_AUDIO]._secBaseTime;
 
 				//画面帧队列
-				auto& video_queue = play_tool.FrameQueue[AVMEDIA_TYPE_VIDEO];
-				auto& audio_queue = play_tool.FrameQueue[AVMEDIA_TYPE_AUDIO];
+				auto& video_queue = play_stream_ctx[AVMEDIA_TYPE_VIDEO]._frame_queue;
+				auto& audio_queue = play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
 
 				//如果音频队列为空，则等待音频队列填充
                 while (audio_ptr.first == nullptr) std::this_thread::sleep_for(1ms);
@@ -164,7 +160,7 @@ namespace SDLLayer
                     }
 				}
             });
-		std::osyncstream{ std::cout } << "create player thread id: " << play_tool.ThrPlay.get_id() << std::endl;
+		spdlog::info(std::format("create player thread id: {}", play_tool.ThrPlay.get_id()));
 	}
 
 	void DriveWindow::ReSize(int width, int height) noexcept
@@ -207,7 +203,7 @@ namespace SDLLayer
 		is_pause ? ResumePlayer() : PausePlayer();
 	}
 
-	void DriveWindow::convert_video_frame(AVFrame*& work, [[maybe_unused]] char*& buf) noexcept
+	void DriveWindow::convert_video_frame(ScopeAVFramePtr& work, [[maybe_unused]] char*& buf) noexcept
 	{
 		if (work == nullptr) return;
 
@@ -226,11 +222,12 @@ namespace SDLLayer
 				isNeedToChangeFrame = false;
 			}
 		}
-		if (isNeedToChangeFrame) play_tool.sws_scale_420P(work);
-
+		if (isNeedToChangeFrame) {
+			play_tool.sws_scale_420P(work);
+		}
 	}
 
-    void DriveWindow::convert_audio_frame(AVFrame*& work, char*& buf) noexcept
+    void DriveWindow::convert_audio_frame(ScopeAVFramePtr& work, char*& buf) noexcept
 	{
 		if (work == nullptr)return;
 		if (buf == nullptr)buf = new char[work->linesize[0]];
@@ -245,7 +242,7 @@ namespace SDLLayer
 		SDL_Event windowEvent;
 
 		//auto secBaseVideo = play_tool->secBaseTime[AVMEDIA_TYPE_VIDEO];
-		auto secBaseAudio = play_tool.secBaseTime[AVMEDIA_TYPE_AUDIO];
+		auto secBaseAudio = play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._secBaseTime;
 
         while (true)
 		{
@@ -302,7 +299,7 @@ namespace SDLLayer
 		//清空流
 		if (_this->audio_buflen == 0)
 		{
-			auto tmp_audio_frame = _this->play_tool.FrameQueue[AVMEDIA_TYPE_AUDIO].pop();
+			auto tmp_audio_frame = _this->play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue.pop();
 			if(tmp_audio_frame.has_value() == false) return;
 
 			audio_frame = std::move(tmp_audio_frame.value());
@@ -328,7 +325,7 @@ namespace SDLLayer
     void DriveWindow::InitAudio(SDL_AudioCallback callback)
 	{
 		SDL_CloseAudioDevice(device_id);
-		auto& audio_ctx = play_tool._decode_ctx_arr[AVMEDIA_TYPE_AUDIO];
+		auto& audio_ctx = play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._codec_ctx;
 		AVSampleFormat* format;
 
 		avcodec_get_supported_config(audio_ctx, nullptr, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, (const void**)&format, nullptr);
@@ -367,7 +364,7 @@ namespace SDLLayer
 		//抗锯齿
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
-		auto& video_ctx = play_tool._decode_ctx_arr[AVMEDIA_TYPE_VIDEO];
+		auto& video_ctx = play_tool._play_stream_ctx[AVMEDIA_TYPE_VIDEO]._codec_ctx;
 
 		if (SDL_Init(SDL_INIT_VIDEO)) throw "SDL_init error";
 

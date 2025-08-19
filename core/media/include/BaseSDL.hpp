@@ -11,16 +11,10 @@ namespace SDLLayer
 	//转化AVPixelFormat为SDL_PixelFormatEnum格式
 	extern const std::map<AVPixelFormat, SDL_PixelFormatEnum> map_video_format;
 
-	class DriveWindow
+	class DriveWindow : public Mortis::Singleton<DriveWindow>
 	{
-	protected:
-		DriveWindow() = default;
-		DriveWindow(const DriveWindow&) = delete;
-		DriveWindow& operator=(const DriveWindow&) = delete;
+		using Singleton::Singleton;
 	public:
-		static DriveWindow& Instance();
-
-
 		~DriveWindow();
 
 	public:
@@ -69,9 +63,9 @@ namespace SDLLayer
 	public:
 
 		//处理画面帧回调封装
-		void convert_video_frame(AVFrame*& work, char*& buf) noexcept;
+		void convert_video_frame(ScopeAVFramePtr& work, char*& buf) noexcept;
 		//处理音頻帧回调封装
-		void convert_audio_frame(AVFrame*& work, char*& buf) noexcept;
+		void convert_audio_frame(ScopeAVFramePtr& work, char*& buf) noexcept;
 
 		//鼠标键盘事件回调函数
 		void KeyMouseCallEvent() noexcept;
