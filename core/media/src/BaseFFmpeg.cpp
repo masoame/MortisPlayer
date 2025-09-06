@@ -1,6 +1,6 @@
 ﻿#include"BaseFFmpeg.hpp"
 
-namespace FFmpegLayer
+namespace Mortis::Player::FFmpeg
 {
     //sample_bit_size[AVSampleFormat(音频采样格式)] == 采样点的大小
     constexpr const char sample_bit_size[13]{ 1,2,4,4,8,1,2,4,4,8,8,8,-1 };
@@ -22,10 +22,10 @@ namespace FFmpegLayer
         AV_SAMPLE_FMT_NONE
     };
 
-	PlayTool::PlaySreamContext::PlaySreamContext(ScopeAVCodecContextPtr&& codecCtx, std::size_t frameSize)
-        : _frame_queue(frameSize)
+	PlayTool::PlaySreamContext::PlaySreamContext(ScopeAVCodecContextPtr&& codecCtx, std::size_t frameSize): 
+        _frame_queue(frameSize),
+		_codec_ctx (std::move(codecCtx))
 	{
-        _codec_ctx = std::move(codecCtx);
 	}
 
 	PlayTool::PlaySreamContext::PlaySreamContext(std::size_t frameSize)
@@ -48,7 +48,7 @@ namespace FFmpegLayer
         close();
         if (type & in)
         {
-            auto ex_avfctx_input = media::OpenFFmpegStream(srcUrl, true);
+            auto ex_avfctx_input = OpenFFmpegStream(srcUrl, true);
             if (ex_avfctx_input.has_value()) {
                 _p_avfctx_input = std::move(ex_avfctx_input.value());
             }
@@ -81,7 +81,7 @@ namespace FFmpegLayer
         auto pStreamIndex = std::make_unique<int>();
 
         auto& ref_ctx = _play_stream_ctx[mediaType];
-        ref_ctx._codec_ctx = media::CreateDecodecCtx(_p_avfctx_input, mediaType, pStreamIndex).value_or(nullptr);
+        ref_ctx._codec_ctx = CreateDecodecCtx(_p_avfctx_input, mediaType, pStreamIndex).value_or(nullptr);
 		ref_ctx._index = *pStreamIndex;
         ref_ctx._secBaseTime = av_q2d(_p_avfctx_input->streams[*pStreamIndex]->time_base);
 		ref_ctx._frame_queue.setMaxSize(queueSize);
@@ -161,11 +161,11 @@ namespace FFmpegLayer
 
     void PlayTool::seek_time(int64_t sec) noexcept
     {
+		if (_p_avfctx_input == nullptr) {
+			return;
+		}
 		auto& audio_frame_queue = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
 		auto& video_frame_queue = _play_stream_ctx[AVMEDIA_TYPE_VIDEO]._frame_queue;
-
-        if(_p_avfctx_input == nullptr)
-            return;
         std::lock_guard lock(decode_mutex);
 
         {
@@ -181,9 +181,7 @@ namespace FFmpegLayer
             if (avformat_seek_file(_p_avfctx_input, -1, INT64_MIN, sec * AV_TIME_BASE, sec * AV_TIME_BASE, AVSEEK_FLAG_BACKWARD) < 0) {
                 spdlog::error("seek failed");
             }
-
-            this->avframe_work[AVMEDIA_TYPE_VIDEO].first->pts = 0;
-
+            avframe_work[AVMEDIA_TYPE_VIDEO].first->pts = 0;
         }
 
         PacketQueue._cv_could_push.notify_one();
@@ -194,12 +192,15 @@ namespace FFmpegLayer
 
     void PlayTool::close() noexcept
     {
-        if (ThrRead.joinable()) 
-            ThrRead.request_stop();
-        if (ThrDecode.joinable()) 
-            ThrDecode.request_stop();
-        if (ThrPlay.joinable()) 
-            ThrPlay.request_stop();
+        if (ThrRead.joinable()) {
+			ThrRead.request_stop();
+        }
+        if (ThrDecode.joinable()) {
+			ThrDecode.request_stop();
+        }
+        if (ThrPlay.joinable()) {
+			ThrPlay.request_stop();
+        }
 
         auto& play_stream_video_ctx = _play_stream_ctx[AVMEDIA_TYPE_VIDEO]._frame_queue;
         auto& play_stream_audio_ctx = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;

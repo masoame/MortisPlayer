@@ -1,6 +1,6 @@
 #include <media.hpp>
 
-namespace media
+namespace Mortis::Player
 {
 	auto OpenFFmpegStream(std::string_view url, bool isNeedToPrintInfo)
 		-> Expected<ScopeAVFormatContextPtr>
@@ -18,7 +18,7 @@ namespace media
 		return pAVFormatCtx;
 	}
 
-	auto CreateDecodecCtx(const ScopeAVFormatContextPtr& stream, AVMediaType meidaType,const std::unique_ptr<int>& outIndex)
+	auto CreateDecodecCtx(const ScopeAVFormatContextPtr& stream, AVMediaType meidaType,const std::unique_ptr<int>& pOutIndex)
 		-> Expected<ScopeAVCodecContextPtr>
 	{
 		auto index = av_find_best_stream(stream, meidaType, -1, -1, NULL, 0);
@@ -36,8 +36,8 @@ namespace media
 		if (avcodec_open2(decode_ctx, codec, NULL)) {
 			return UnExpected("avcodec_open2 error!!!");
 		}
-		if (outIndex) {
-			*outIndex = index;
+		if (pOutIndex) {
+			*pOutIndex = index;
 		}
 		return decode_ctx;
 	}

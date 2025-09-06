@@ -9,4 +9,4 @@ include(CMake_pkg.cmake)
 
 add_subdirectory(core)
 add_subdirectory(gui) 
-add_subdirectory(test) 
+add_subdirectory(test)

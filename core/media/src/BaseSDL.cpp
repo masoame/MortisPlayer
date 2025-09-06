@@ -2,7 +2,7 @@
 #include<iostream>
 #include<syncstream>
 #include<chrono>
-namespace SDLLayer
+namespace Mortis::Player::SDL
 {
 	const constexpr SDL_AudioFormat map_audio_formot[13]
 	{
@@ -334,7 +334,7 @@ namespace SDLLayer
 
 		if (av_sample_fmt_is_planar(*format))
 		{
-			if (play_tool.init_swr() != FFmpegLayer::SUCCESS) throw "init_swr() failed";
+			if (play_tool.init_swr() != Mortis::Player::FFmpeg::SUCCESS) throw "init_swr() failed";
 			is_planner = true;
 		}
         else is_planner = false;

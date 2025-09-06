@@ -1,13 +1,10 @@
 ﻿#pragma once
 #include<media.hpp>
 
-namespace FFmpegLayer
+namespace Mortis::Player::FFmpeg
 {
-	using namespace common;
-
-	using bounded_queue_packet = ::Mortis::bounded_queue<ScopeAVPacketPtr>;
-	using bounded_queue_frame = ::Mortis::bounded_queue<std::pair<ScopeAVFramePtr, std::unique_ptr<char[]>>>;
-
+	using bounded_queue_packet = bounded_queue<ScopeAVPacketPtr>;
+	using bounded_queue_frame = bounded_queue<std::pair<ScopeAVFramePtr, std::unique_ptr<char[]>>>;
 
 
 	//函数回调类型

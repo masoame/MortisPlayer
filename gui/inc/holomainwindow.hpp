@@ -36,7 +36,7 @@ private:
     void closeWindow();
 
     Ui::HoloMainWindow *ui;
-    SDLLayer::DriveWindow& drivewindows;
+    Mortis::Player::SDL::DriveWindow& drivewindows;
     int timer_id;
 protected:
     void timerEvent(QTimerEvent * event) override;

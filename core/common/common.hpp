@@ -31,8 +31,7 @@ extern"C"
 }
 #endif
 
-
-namespace common
+namespace Mortis::Player
 {
 	using namespace std::chrono_literals;
 	using Mortis::ScopeHandle;
@@ -40,7 +39,7 @@ namespace common
 	using Mortis::Expected;
 	using Mortis::UnExpected;
 
-	//管理内存的智能指针
+	//RAII管理内存的智能指针
 	using ScopeAVPacketPtr = ScopeHandle<AVPacket, StaticFunctorWrapper<av_packet_free>>;
 	using ScopeAVCodecContextPtr = ScopeHandle<AVCodecContext, StaticFunctorWrapper<avcodec_free_context>>;
 	using ScopeAVFormatContextPtr = ScopeHandle<AVFormatContext, StaticFunctorWrapper<avformat_free_context>>;

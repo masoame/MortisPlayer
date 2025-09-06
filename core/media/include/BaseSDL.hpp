@@ -2,10 +2,8 @@
 
 #include"BaseFFmpeg.hpp"
 
-namespace SDLLayer
+namespace Mortis::Player::SDL 
 {
-	using namespace FFmpegLayer;
-
 	//把AVSampleFormat格式转化为SDL_AudioFormat
 	extern const SDL_AudioFormat map_audio_formot[13];
 	//转化AVPixelFormat为SDL_PixelFormatEnum格式
@@ -19,14 +17,14 @@ namespace SDLLayer
 
 	public:
 		//依赖的ffmpeg层
-		PlayTool& play_tool = PlayTool::Instance();
+		FFmpeg::PlayTool& play_tool = FFmpeg::PlayTool::Instance();
 
 		//是否需要重新设置窗口大小
 		bool isChangeSize = false;
 		//----------------------------------------------------AUDIO------------------------------------------------------------------
-	 private:
+	private:
 		//音频缓存指针
-		 uint8_t* audio_buffer = nullptr;
+		uint8_t* audio_buffer = nullptr;
 		//音频工作指向
 		Uint8* audio_pos = nullptr;
 
@@ -38,7 +36,7 @@ namespace SDLLayer
 		SDL_AudioSpec sdl_audio{ 0 };
 	public:
 		//音量大小值
-		unsigned char volume= static_cast<unsigned char>(SDL_MIX_MAXVOLUME);
+		unsigned char volume = static_cast<unsigned char>(SDL_MIX_MAXVOLUME);
 		//音频识别符
 		SDL_AudioDeviceID device_id = 0;
 		//音频播放状态
@@ -92,4 +90,4 @@ namespace SDLLayer
 		//触发暂停或播放
 		void togglePause() noexcept;
 	};
-};
+}

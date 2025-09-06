@@ -114,7 +114,7 @@ void NetToFileDialog::on_checkUrlBtn_clicked()
     code = this->_userdata.RequestInit(ui->urlEdit->text().toStdString());
     if (code != CURLE_OK) return;
 
-    code = this->_userdata.SetOption(SpiderVideo::saveBuffer);
+    code = this->_userdata.SetOption(Mortis::Player::Spider::saveBuffer);
     if (code != CURLE_OK) return;
 
     code = this->_userdata.RequestSoure();

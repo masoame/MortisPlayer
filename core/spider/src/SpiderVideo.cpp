@@ -1,8 +1,7 @@
 #include"SpiderVideo.hpp"
 #include<regex>
 
-
-namespace SpiderVideo
+namespace Mortis::Player::Spider
 {
     static std::regex getHeaderValue{ "Content-Length: (\\d*?)\r\n" ,std::regex::icase };
 

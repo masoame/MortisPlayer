@@ -22,7 +22,7 @@ public:
 private:
     Ui::NetToFileDialog *ui;
     ::ParseJson::BiliBili::DataMap _video_info;
-    ::SpiderVideo::SpiderTool _userdata;
+    Mortis::Player::Spider::SpiderTool _userdata;
 
 private slots:
     void on_checkUrlBtn_clicked();

@@ -40,7 +40,7 @@ constexpr const char s_run_style[]="             \
 
 HoloMainWindow::HoloMainWindow(QWidget *parent)
     : QMainWindow(parent), 
-    drivewindows(SDLLayer::DriveWindow::Instance())
+    drivewindows(Mortis::Player::SDL::DriveWindow::Instance())
     , ui(new Ui::HoloMainWindow)
 {
     ui->setupUi(this);

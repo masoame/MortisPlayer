@@ -6,7 +6,6 @@ namespace ParseJson
 {
 	namespace BiliBili
 	{
-
 		//解析Bilibili的HTML页面
 		std::optional<std::pair<std::string, ::nlohmann::json>> ParseHTML(std::string_view bilibili_html_str) noexcept
 		{
@@ -14,9 +13,12 @@ namespace ParseJson
 			std::regex getVideoResource("<script>window\\.__playinfo__=(.*?)</script>");
 			std::regex getTitleResource("<title.*?>(.*?)</title>");
 
-			if ((std::regex_search(bilibili_html_str.data(), videoResults, getVideoResource) == false)) return {};
-			if ((std::regex_search(bilibili_html_str.data(), titleResults, getTitleResource) == false)) return {};
-
+			if ((std::regex_search(bilibili_html_str.data(), videoResults, getVideoResource) == false)) {
+				return {};
+			}
+			if ((std::regex_search(bilibili_html_str.data(), titleResults, getTitleResource) == false)) {
+				return {};
+			}
 			try {
 
 				auto _json = ::nlohmann::json::parse(videoResults[1].str());

@@ -2,10 +2,8 @@
 
 #include <common.hpp>
 
-namespace SpiderVideo
+namespace Mortis::Player::Spider
 {
-	using namespace common;
-
 	enum RequestType
 	{
 		saveFile = 0x01,
