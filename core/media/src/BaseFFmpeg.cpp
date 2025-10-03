@@ -72,7 +72,7 @@ namespace Mortis::Player::FFmpeg
             };
             return true;
         }
-        return false;
+        return true;
     }
 
 	bool PlayTool::initPlayStreamCtx(AVMediaType mediaType,std::size_t queueSize)

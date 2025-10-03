@@ -124,11 +124,18 @@ QPushButton:hover {
      <property name="text">
       <string/>
      </property>
+     <property name="icon">
+      <iconset resource="../res/Img.qrc">
+       <normaloff>:/Image/icon/Image/icon/x-circle-fill.png</normaloff>
+       <disabledoff>:/Image/icon/Image/icon/page0.png</disabledoff>:/Image/icon/Image/icon/x-circle-fill.png</iconset>
+     </property>
     </widget>
    </item>
   </layout>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <resources/>
+ <resources>
+  <include location="../res/Img.qrc"/>
+ </resources>
  <connections/>
 </ui>
