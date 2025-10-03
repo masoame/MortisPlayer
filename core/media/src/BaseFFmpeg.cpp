@@ -24,7 +24,7 @@ namespace Mortis::Player::FFmpeg
 
 	PlayTool::PlaySreamContext::PlaySreamContext(ScopeAVCodecContextPtr&& codecCtx, std::size_t frameSize): 
         _frame_queue(frameSize),
-		_codec_ctx (std::move(codecCtx))
+		_codec_ctx(std::move(codecCtx))
 	{
 	}
 
@@ -35,7 +35,7 @@ namespace Mortis::Player::FFmpeg
 		: PlaySreamContext(0) { }
 
 	PlayTool::PlayTool() :
-        _play_stream_ctx{ }
+        _play_stream_ctx()
 	{ }
 
 	PlayTool::~PlayTool() {
@@ -43,29 +43,28 @@ namespace Mortis::Player::FFmpeg
     }
 
 
-    bool PlayTool::open(std::string_view srcUrl, std::string_view dstUrl, unsigned char type)
+    bool PlayTool::open(std::string_view srcUrl, std::string_view dstUrl /*= {}*/, FlagEdit<PlayerMode> mode /*= in | video | audio*/)
     {
         close();
-        if (type & in)
-        {
-            auto ex_avfctx_input = OpenFFmpegStream(srcUrl, true);
-            if (ex_avfctx_input.has_value()) {
-                _p_avfctx_input = std::move(ex_avfctx_input.value());
+        if (mode.contains(in)){
+
+            auto exp_stream = OpenFFmpegStream(srcUrl, true);
+            if (exp_stream) {
+                _p_stream = std::move(exp_stream.value());
             }
             else {
-				throw std::runtime_error(ex_avfctx_input.error().data());
+                spdlog::error(exp_stream.error().data());
+                return false;
             }
 
-            if (type & video) {
-                initPlayStreamCtx(AVMEDIA_TYPE_VIDEO, 12);
+            if (mode.contains(video) && initPlayStreamCtx(AVMEDIA_TYPE_VIDEO, 12)) {
+                return false;
             }
-            if (type & audio) {
-                initPlayStreamCtx(AVMEDIA_TYPE_AUDIO, 50);
+            if (mode.contains(audio) && initPlayStreamCtx(AVMEDIA_TYPE_AUDIO, 50)) {
+                return false;
             }
-            return true;
         }
-        if (type & out)
-        {
+        if (mode.contains(out)){
             // 未完成重写
             _p_avfctx_output = avformat_alloc_context();
             if (avformat_alloc_output_context2(&_p_avfctx_output, nullptr, dstUrl.data(), nullptr) < 0) {
@@ -76,16 +75,22 @@ namespace Mortis::Player::FFmpeg
         return false;
     }
 
-	RESULT PlayTool::initPlayStreamCtx(AVMediaType mediaType,std::size_t queueSize)
+	bool PlayTool::initPlayStreamCtx(AVMediaType mediaType,std::size_t queueSize)
     {
         auto pStreamIndex = std::make_unique<int>();
+        auto exp_ctx = CreateDecodecCtxByStream(_p_stream, mediaType, pStreamIndex);
 
+        if (exp_ctx == false) {
+            spdlog::error(exp_ctx.error());
+            return false;
+        }
+       
         auto& ref_ctx = _play_stream_ctx[mediaType];
-        ref_ctx._codec_ctx = CreateDecodecCtx(_p_avfctx_input, mediaType, pStreamIndex).value_or(nullptr);
+        ref_ctx._codec_ctx = std::move(exp_ctx.value());
 		ref_ctx._index = *pStreamIndex;
-        ref_ctx._secBaseTime = av_q2d(_p_avfctx_input->streams[*pStreamIndex]->time_base);
-		ref_ctx._frame_queue.setMaxSize(queueSize);
 
+        ref_ctx._secBaseTime = av_q2d(_p_stream->streams[*pStreamIndex]->time_base);
+		ref_ctx._frame_queue.setMaxSize(queueSize);
 		_stream_index_to_type[*pStreamIndex] = mediaType;
         return SUCCESS;
     }
@@ -161,7 +166,7 @@ namespace Mortis::Player::FFmpeg
 
     void PlayTool::seek_time(int64_t sec) noexcept
     {
-		if (_p_avfctx_input == nullptr) {
+		if (_p_stream == nullptr) {
 			return;
 		}
 		auto& audio_frame_queue = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
@@ -178,7 +183,7 @@ namespace Mortis::Player::FFmpeg
             avcodec_flush_buffers(_play_stream_ctx[AVMEDIA_TYPE_VIDEO]._codec_ctx);
             avcodec_flush_buffers(_play_stream_ctx[AVMEDIA_TYPE_AUDIO]._codec_ctx);
 
-            if (avformat_seek_file(_p_avfctx_input, -1, INT64_MIN, sec * AV_TIME_BASE, sec * AV_TIME_BASE, AVSEEK_FLAG_BACKWARD) < 0) {
+            if (avformat_seek_file(_p_stream, -1, INT64_MIN, sec * AV_TIME_BASE, sec * AV_TIME_BASE, AVSEEK_FLAG_BACKWARD) < 0) {
                 spdlog::error("seek failed");
             }
             avframe_work[AVMEDIA_TYPE_VIDEO].first->pts = 0;
@@ -247,7 +252,7 @@ namespace Mortis::Player::FFmpeg
                     ScopeAVPacketPtr avp(av_packet_alloc());
                     {
                         std::unique_lock lock(this->decode_mutex);
-                        err = av_read_frame(_p_avfctx_input, avp);
+                        err = av_read_frame(_p_stream, avp);
                         if ((err < 0) || (err == AVERROR_EOF)) {
                             std::this_thread::sleep_for(1ms);
                             continue;

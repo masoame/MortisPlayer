@@ -40,7 +40,7 @@ constexpr const char s_run_style[]="             \
 
 HoloMainWindow::HoloMainWindow(QWidget *parent)
     : QMainWindow(parent), 
-    drivewindows(Mortis::Player::SDL::DriveWindow::Instance())
+    _drivewindows(Mortis::Player::SDL::DriveWindow::Instance())
     , ui(new Ui::HoloMainWindow)
 {
     ui->setupUi(this);
@@ -50,7 +50,7 @@ HoloMainWindow::HoloMainWindow(QWidget *parent)
     ui->dockTitleWidget->setTitleBarWidget(new QWidget(ui->dockTitleWidget));
     ui->dockTitleWidget->setWidget(new HoloTitleWidget(ui->dockTitleWidget));
 
-    timer_id = this->startTimer(250);
+    timer_id = startTimer(250);
     
     connect(ui->openFile, &QAction::triggered, this, &HoloMainWindow::StartOpenFile);
     connect(ui->netMode, &QAction::triggered, this, &HoloMainWindow::StartNetMode);
@@ -64,20 +64,20 @@ HoloMainWindow::~HoloMainWindow()
 
 void HoloMainWindow::on_stop_play_clicked()
 {
-    this->drivewindows.togglePause();
+    this->_drivewindows.togglePause();
 }
 
 void HoloMainWindow::timerEvent([[maybe_unused]] QTimerEvent * event)
 {
 
-    auto& audio_ptr = this->drivewindows.play_tool.avframe_work[AVMEDIA_TYPE_AUDIO].first;
+    auto& audio_ptr = this->_drivewindows.play_tool.avframe_work[AVMEDIA_TYPE_AUDIO].first;
     if(audio_ptr==nullptr)return;
     if(ui->time_slider->isSliderDown() == false){
-        int sec=audio_ptr->pts * this->drivewindows.play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._secBaseTime;
+        int sec=audio_ptr->pts * this->_drivewindows.play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._secBaseTime;
         ui->timestamp->setText(QString::asprintf("%02d:%02d", sec / 60, sec % 60));
         ui->time_slider->setValue(sec);
     }
-    if (this->drivewindows.is_pause == false) {
+    if (this->_drivewindows.is_pause == false) {
         ui->stop_play->setStyleSheet(s_run_style);
     }
     else {
@@ -88,13 +88,13 @@ void HoloMainWindow::timerEvent([[maybe_unused]] QTimerEvent * event)
 
 void HoloMainWindow::resizeEvent([[maybe_unused]] QResizeEvent* event)
 {
-    this->drivewindows.ReSize(this->ui->openGLWidget->width(), this->ui->openGLWidget->height());
+    this->_drivewindows.ReSize(this->ui->openGLWidget->width(), this->ui->openGLWidget->height());
 }
 
 
 void HoloMainWindow::on_time_slider_sliderReleased()
 {
-    this->drivewindows.play_tool.seek_time(ui->time_slider->value());
+    this->_drivewindows.play_tool.seek_time(ui->time_slider->value());
 }
 
 void HoloMainWindow::on_time_slider_sliderMoved(int position)
@@ -108,14 +108,13 @@ void HoloMainWindow::StartOpenFile()
     if (filepath.isEmpty() || filepath == "") 
         return;
    
-    if (drivewindows.play_tool.open(filepath.toStdString().c_str()) == false) {
+    if (_drivewindows.play_tool.open(filepath.toStdString()) == false) {
         return;
     }
 
-
-    this->drivewindows.InitPlayer(this->ui->openGLWidget->width(), this->ui->openGLWidget->height(),reinterpret_cast<void*>(this->ui->openGLWidget->winId()));
-    this->drivewindows.StartPlayer();
-    int sec = this->drivewindows.play_tool._p_avfctx_input->duration / AV_TIME_BASE;
+    _drivewindows.InitPlayer(ui->openGLWidget->width(), ui->openGLWidget->height(),reinterpret_cast<void*>(ui->openGLWidget->winId()));
+    _drivewindows.StartPlayer();
+    auto sec = _drivewindows.play_tool._p_stream->duration / AV_TIME_BASE;
     ui->total_time->setText(QString::number(sec / 60) + ":" + QString::number(sec % 60));
     ui->time_slider->setSliderPosition(0);
     ui->time_slider->setMaximum(sec);
@@ -123,18 +122,17 @@ void HoloMainWindow::StartOpenFile()
 
 void HoloMainWindow::StartNetMode()
 {
-    auto a = new NetToFileDialog(this);
-    a->setAttribute(Qt::WA_DeleteOnClose);
-    a->exec();
+    auto spider_dlg = new NetToFileDialog(this);
+    spider_dlg->setAttribute(Qt::WA_DeleteOnClose);
+    spider_dlg->exec();
 }
 void HoloMainWindow::closeWindow()
 {
-    qDebug() << "closeWindow";
-    this->close();
-
+    spdlog::info("closeWindow");
+    close();
 }
 void HoloMainWindow::on_volume_slider_valueChanged(int value)
 {
-    this->drivewindows.volume = value;
+    _drivewindows.volume = value;
 }
 

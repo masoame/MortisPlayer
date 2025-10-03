@@ -92,7 +92,9 @@ namespace Mortis::Player::SDL
 				auto& audio_queue = play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
 
 				//如果音频队列为空，则等待音频队列填充
-                while (audio_ptr.first == nullptr) std::this_thread::sleep_for(1ms);
+				while (audio_ptr.first == nullptr) {
+					std::this_thread::sleep_for(1ms);
+				}
 
 				//循环读取帧刷新到窗口句柄上
                 while (st.stop_requested() == false)
@@ -257,25 +259,13 @@ namespace Mortis::Player::SDL
 					case SDLK_ESCAPE:
 						break;
 					case SDLK_SPACE:
-
-						//if (play_tool->local_thread & playing_thread){
-						//	SDL_PauseAudioDevice(device_id, 1);
-						//	//play_tool->stop(playing_thread);
-						//}
-
 						SDL_PauseAudioDevice(device_id, 0);
-							//play_tool->run(playing_thread);
                         break;
-
 					case SDLK_LEFT:
-
 						play_tool.seek_time(static_cast<int64_t>(play_tool.avframe_work[AVMEDIA_TYPE_AUDIO].first->pts * secBaseAudio - 5));
-
 						break;
 					case SDLK_RIGHT:
-
 						play_tool.seek_time(static_cast<int64_t>(play_tool.avframe_work[AVMEDIA_TYPE_AUDIO].first->pts * secBaseAudio + 5));
-
 						break;
 
 					default:

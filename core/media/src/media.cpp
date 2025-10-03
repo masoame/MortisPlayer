@@ -18,7 +18,7 @@ namespace Mortis::Player
 		return pAVFormatCtx;
 	}
 
-	auto CreateDecodecCtx(const ScopeAVFormatContextPtr& stream, AVMediaType meidaType,const std::unique_ptr<int>& pOutIndex)
+	auto CreateDecodecCtxByStream(const ScopeAVFormatContextPtr& stream, AVMediaType meidaType, const std::unique_ptr<int>& pOutStreamIndex /*= {}*/)
 		-> Expected<ScopeAVCodecContextPtr>
 	{
 		auto index = av_find_best_stream(stream, meidaType, -1, -1, NULL, 0);
@@ -36,8 +36,8 @@ namespace Mortis::Player
 		if (avcodec_open2(decode_ctx, codec, NULL)) {
 			return UnExpected("avcodec_open2 error!!!");
 		}
-		if (pOutIndex) {
-			*pOutIndex = index;
+		if (pOutStreamIndex) {
+			*pOutStreamIndex = index;
 		}
 		return decode_ctx;
 	}

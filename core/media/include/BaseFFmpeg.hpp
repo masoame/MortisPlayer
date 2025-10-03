@@ -21,7 +21,7 @@ namespace Mortis::Player::FFmpeg
 	};
 
 	//流类型
-	enum ios : char
+	enum PlayerMode
 	{
 		None = 0x0,
 		in = 0x1,
@@ -67,9 +67,9 @@ namespace Mortis::Player::FFmpeg
 
 
 		//打开流
-        bool open(std::string_view srcUrl, std::string_view dstUrl = {}, unsigned char type = in | video | audio);
+        bool open(std::string_view srcUrl, std::string_view dstUrl = {}, FlagEdit<PlayerMode> mode = in | video | audio);
 		//初始化各种编解码器
-		RESULT initPlayStreamCtx(AVMediaType type,std::size_t queueSize = 1);
+		bool initPlayStreamCtx(AVMediaType type,std::size_t queueSize = 1);
 		//初始化编码器
 		RESULT init_encode(AVMediaType type);
 
@@ -99,7 +99,7 @@ namespace Mortis::Player::FFmpeg
 	public:
 
 		//输入输出格式指针
-		ScopeAVFormatContextPtr _p_avfctx_input, _p_avfctx_output;
+		ScopeAVFormatContextPtr _p_stream, _p_avfctx_output;
 
 		//解码上下文指针
 		std::mutex decode_mutex;
