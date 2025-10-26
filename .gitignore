@@ -365,4 +365,5 @@ FodyWeavers.xsd
 CMakePresets.json
 CMakeUserPresets.json
 CMakeSettings.json
-external_library/ffmpeg-n7.1-latest-win64-gpl-shared-7.1/
+cmake/external_library/ffmpeg-n7.1-latest-win64-gpl-shared-7.1/
+build/

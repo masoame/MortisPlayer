@@ -4,7 +4,7 @@ add_library(${PROJECT_NAME} INTERFACE)
 add_library(Player::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_link_libraries(${PROJECT_NAME} INTERFACE 
-	Mortis::Lib
+	Mortis::Utils
 	CURL::libcurl
 	SDL2::SDL2
 	ffmpeg

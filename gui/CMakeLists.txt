@@ -49,6 +49,10 @@ else()
         ${CMAKE_BINARY_DIR}/gui/gui_autogen/include
     )
 
+    set_target_properties(${PROJECT_NAME} PROPERTIES 
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
+
 
     add_custom_command(TARGET ${PROJECT_NAME}
         POST_BUILD

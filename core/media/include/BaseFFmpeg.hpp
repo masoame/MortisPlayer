@@ -31,14 +31,6 @@ namespace Mortis::Player::FFmpeg
 		audio = 0x8
 	};
 
-	//输入或输出帧格式
-	typedef struct MediaType
-	{
-		int w, h;
-		AVPixelFormat video_type;
-		AVSampleFormat audio_type;
-	}IOMediaType;
-
 	extern const char sample_bit_size[13];
 	extern const AVSampleFormat map_palnner_to_packad[13];
 
@@ -46,28 +38,26 @@ namespace Mortis::Player::FFmpeg
 	class PlayTool : public Mortis::Singleton<PlayTool>
 	{
 	public:
-		//using Singleton::Singleton;
 		PlayTool();
 		~PlayTool();
 
 		bounded_queue_packet PacketQueue{ 10 };
-		struct PlaySreamContext
+		class PlaySreamContext
 		{
-			PlaySreamContext(ScopeAVCodecContextPtr&& codecCtx ,std::size_t frameSize);
-			PlaySreamContext(std::size_t frameSize);
-			PlaySreamContext();
-			ScopeAVCodecContextPtr _codec_ctx;
+			ScopeAVCodecContextPtr _pCodecCtx;
 			bounded_queue_frame _frame_queue;
 			double _secBaseTime;
 			int _index;
+		public:
+			PlaySreamContext();
+			void onceInit(ScopeAVCodecContextPtr&& pCodeCtx, bounded_queue_frame frameQuque);
 		};
 
 		std::array<PlaySreamContext,6> _play_stream_ctx;
 		std::map<int, AVMediaType> _stream_index_to_type;
 
-
 		//打开流
-        bool open(std::string_view srcUrl, std::string_view dstUrl = {}, FlagEdit<PlayerMode> mode = in | video | audio);
+        bool open(std::string_view srcUrl, std::string_view dstUrl = {},int mode = in | video | audio);
 		//初始化各种编解码器
 		bool initPlayStreamCtx(AVMediaType type,std::size_t queueSize = 1);
 		//初始化编码器
@@ -99,7 +89,7 @@ namespace Mortis::Player::FFmpeg
 	public:
 
 		//输入输出格式指针
-		ScopeAVFormatContextPtr _p_stream, _p_avfctx_output;
+		ScopeAVFormatContextPtr pAVFmtStream, _p_avfctx_output;
 
 		//解码上下文指针
 		std::mutex decode_mutex;

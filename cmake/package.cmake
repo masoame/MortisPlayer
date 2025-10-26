@@ -7,16 +7,10 @@ set(ENV{https_proxy} "http://127.0.0.1:10808")
 include(FetchContent)
 
 FetchContent_Declare(
-    Mortis
-    GIT_REPOSITORY  https://github.com/masoame/Mortis.git
+    MortisUtils
+    GIT_REPOSITORY  https://github.com/masoame/MortisUtils.git
 )
-
-FetchContent_MakeAvailable(Mortis)
-
-message("---------------------------------start_curl---------------------------------")
-
-
-
+FetchContent_MakeAvailable(MortisUtils)
 
 FetchContent_Declare(
     curl
@@ -27,15 +21,10 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(curl)
 
-message("----------------------------------end_curl----------------------------------")
-
 FetchContent_Declare(
     SDL
     GIT_REPOSITORY  https://github.com/libsdl-org/SDL.git
     GIT_TAG release-2.30.9
 )
-
 FetchContent_MakeAvailable(SDL)
-
-
-add_subdirectory(external_library)
+include(cmake/external_library/ffmpeg_config.cmake)

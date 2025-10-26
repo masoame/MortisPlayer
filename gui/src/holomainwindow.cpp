@@ -108,13 +108,16 @@ void HoloMainWindow::StartOpenFile()
     if (filepath.isEmpty() || filepath == "") 
         return;
    
-    if (_drivewindows.play_tool.open(filepath.toStdString()) == false) {
-        return;
-    }
+    //if (_drivewindows.play_tool.open(Mo::UTF16ToUTF8((const wchar_t* )filepath.utf16())) == false) {
+    //    return;
+    //}
+	if (_drivewindows.play_tool.open(filepath.toStdString()) == false) {
+		return;
+	}
 
     _drivewindows.InitPlayer(ui->openGLWidget->width(), ui->openGLWidget->height(),reinterpret_cast<void*>(ui->openGLWidget->winId()));
     _drivewindows.StartPlayer();
-    auto sec = _drivewindows.play_tool._p_stream->duration / AV_TIME_BASE;
+    auto sec = _drivewindows.play_tool.pAVFmtStream->duration / AV_TIME_BASE;
     ui->total_time->setText(QString::number(sec / 60) + ":" + QString::number(sec % 60));
     ui->time_slider->setSliderPosition(0);
     ui->time_slider->setMaximum(sec);

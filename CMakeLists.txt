@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 
 project(cmake_template)
 
-include(CMake_cfg.cmake)
-include(CMake_pkg.cmake)
+include(cmake/config.cmake)
+include(cmake/package.cmake)
 
 add_subdirectory(core)
 add_subdirectory(gui) 

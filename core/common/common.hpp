@@ -39,7 +39,6 @@ namespace Mortis::Player
 	using Mortis::Expected;
 	using Mortis::UnExpected;
 
-	//RAII管理内存的智能指针
 	using ScopeAVPacketPtr = ScopeHandle<AVPacket, StaticFunctorWrapper<av_packet_free>>;
 	using ScopeAVCodecContextPtr = ScopeHandle<AVCodecContext, StaticFunctorWrapper<avcodec_free_context>>;
 	using ScopeAVFormatContextPtr = ScopeHandle<AVFormatContext, StaticFunctorWrapper<avformat_free_context>>;

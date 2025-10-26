@@ -315,7 +315,7 @@ namespace Mortis::Player::SDL
     void DriveWindow::InitAudio(SDL_AudioCallback callback)
 	{
 		SDL_CloseAudioDevice(device_id);
-		auto& audio_ctx = play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._codec_ctx;
+		auto& audio_ctx = play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._pCodecCtx;
 		AVSampleFormat* format;
 
 		avcodec_get_supported_config(audio_ctx, nullptr, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, (const void**)&format, nullptr);
@@ -354,7 +354,7 @@ namespace Mortis::Player::SDL
 		//抗锯齿
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
-		auto& video_ctx = play_tool._play_stream_ctx[AVMEDIA_TYPE_VIDEO]._codec_ctx;
+		auto& video_ctx = play_tool._play_stream_ctx[AVMEDIA_TYPE_VIDEO]._pCodecCtx;
 
 		if (SDL_Init(SDL_INIT_VIDEO)) throw "SDL_init error";
 
