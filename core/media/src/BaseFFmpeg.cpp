@@ -22,13 +22,21 @@ namespace Mortis::Player::FFmpeg
         AV_SAMPLE_FMT_NONE
     };
 
-	PlayTool::PlaySreamContext::PlaySreamContext() : 
-        _secBaseTime(-1),
+	PlayTool::FrameStreamContext::FrameStreamContext() : 
+        _dSecBaseTime(-1),
         _pCodecCtx{}
 	{ }
 
+	void PlayTool::FrameStreamContext::onceInit(ScopeAVCodecContextPtr&& pCodeCtx, std::size_t nQueueSize, double dSecBaseTime, int iStreamIdx)
+	{
+        _pCodecCtx = std::move(pCodeCtx);
+        _dSecBaseTime = dSecBaseTime;
+        _iStream = iStreamIdx;
+		_frameQueue.setMaxSize(nQueueSize);
+	}
+
 	PlayTool::PlayTool() :
-        _play_stream_ctx()
+        _frameCtxArr()
 	{ }
 
 	PlayTool::~PlayTool() {
@@ -49,10 +57,10 @@ namespace Mortis::Player::FFmpeg
                 return false;
             }
 
-            if (mode & video && initPlayStreamCtx(AVMEDIA_TYPE_VIDEO, 12)) {
+            if (mode & video && initPlayStreamCtx(AVMEDIA_TYPE_VIDEO, 16) ==  false) {
                 return false;
             }
-            if (mode & audio && initPlayStreamCtx(AVMEDIA_TYPE_AUDIO, 50)) {
+            if (mode & audio && initPlayStreamCtx(AVMEDIA_TYPE_AUDIO, 50) == false) {
                 return false;
             }
         }
@@ -77,20 +85,16 @@ namespace Mortis::Player::FFmpeg
             spdlog::error(exp_ctx.error());
             return false;
         }
-       
-        auto& ref_ctx = _play_stream_ctx[mediaType];
-        ref_ctx._pCodecCtx = std::move(exp_ctx.value());
-		ref_ctx._index = *pStreamIndex;
-        ref_ctx._secBaseTime = av_q2d(pAVFmtStream->streams[*pStreamIndex]->time_base);
-		ref_ctx._frame_queue.setMaxSize(queueSize);
-		_stream_index_to_type[*pStreamIndex] = mediaType;
-        return SUCCESS;
+        auto& ref_ctx = _frameCtxArr[mediaType];
+        ref_ctx.onceInit(std::move(exp_ctx.value()), queueSize, av_q2d(pAVFmtStream->streams[*pStreamIndex]->time_base), *pStreamIndex);
+        _indexToMediaType[*pStreamIndex] = mediaType;
+        return true;
     }
 
 
     RESULT PlayTool::init_swr()
     {
-        ScopeAVCodecContextPtr& audio_ctx = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._pCodecCtx;
+        const ScopeAVCodecContextPtr& audio_ctx = _frameCtxArr[AVMEDIA_TYPE_AUDIO].getCodecCtx();
 
         AVSampleFormat* format;
         avcodec_get_supported_config(audio_ctx, nullptr, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0,(const void**)&format, nullptr);
@@ -133,11 +137,10 @@ namespace Mortis::Player::FFmpeg
     inline void PlayTool::insert_queue(AVMediaType meidaType, ScopeAVFramePtr&& avf) noexcept
     {
         char* userdata = nullptr;
-        if (insert_callback[meidaType] != nullptr)
+        if (insert_callback[meidaType] != nullptr){
             insert_callback[meidaType](avf, userdata);
-
-        _play_stream_ctx[meidaType]._frame_queue.emplace(std::move(avf), userdata);
-
+        }
+        _frameCtxArr[meidaType].getFrameQueue().emplace(std::move(avf), userdata);
         avf = av_frame_alloc();
     }
 
@@ -145,7 +148,6 @@ namespace Mortis::Player::FFmpeg
     {
 
         AVFrame* dst = av_frame_alloc();
-
         if (sws_scale_frame(sws_ctx, dst, data) != 0) {
             return RESULT::UNKONW_ERROR;
         }
@@ -161,19 +163,18 @@ namespace Mortis::Player::FFmpeg
 		if (pAVFmtStream == nullptr) {
 			return;
 		}
-		auto& audio_frame_queue = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
-		auto& video_frame_queue = _play_stream_ctx[AVMEDIA_TYPE_VIDEO]._frame_queue;
-        std::lock_guard lock(decode_mutex);
-
+		auto& audio_frame_queue = _frameCtxArr[AVMEDIA_TYPE_AUDIO].getFrameQueue();
+		auto& video_frame_queue = _frameCtxArr[AVMEDIA_TYPE_VIDEO].getFrameQueue();
+        std::unique_lock lock(decode_mutex);
         {
-            std::scoped_lock lock_queue(PacketQueue._mtx, audio_frame_queue._mtx, video_frame_queue._mtx);
+            std::scoped_lock lock_queue(packetQueue._mtx, audio_frame_queue._mtx, video_frame_queue._mtx);
 
-            PacketQueue.clear();
+            packetQueue.clear();
             audio_frame_queue.clear();
             video_frame_queue.clear();
 
-            avcodec_flush_buffers(_play_stream_ctx[AVMEDIA_TYPE_VIDEO]._pCodecCtx);
-            avcodec_flush_buffers(_play_stream_ctx[AVMEDIA_TYPE_AUDIO]._pCodecCtx);
+            avcodec_flush_buffers(_frameCtxArr[AVMEDIA_TYPE_VIDEO].getCodecCtx());
+            avcodec_flush_buffers(_frameCtxArr[AVMEDIA_TYPE_AUDIO].getCodecCtx());
 
             if (avformat_seek_file(pAVFmtStream, -1, INT64_MIN, sec * AV_TIME_BASE, sec * AV_TIME_BASE, AVSEEK_FLAG_BACKWARD) < 0) {
                 spdlog::error("seek failed");
@@ -181,7 +182,7 @@ namespace Mortis::Player::FFmpeg
             avframe_work[AVMEDIA_TYPE_VIDEO].first->pts = 0;
         }
 
-        PacketQueue._cv_could_push.notify_one();
+        packetQueue._cv_could_push.notify_one();
         audio_frame_queue._cv_could_push.notify_one();
         video_frame_queue._cv_could_push.notify_one();
 
@@ -189,41 +190,41 @@ namespace Mortis::Player::FFmpeg
 
     void PlayTool::close() noexcept
     {
-        if (ThrRead.joinable()) {
-			ThrRead.request_stop();
+        if (thrRead.joinable()) {
+			thrRead.request_stop();
         }
-        if (ThrDecode.joinable()) {
-			ThrDecode.request_stop();
+        if (thrDecode.joinable()) {
+			thrDecode.request_stop();
         }
         if (ThrPlay.joinable()) {
 			ThrPlay.request_stop();
         }
 
-        auto& play_stream_video_ctx = _play_stream_ctx[AVMEDIA_TYPE_VIDEO]._frame_queue;
-        auto& play_stream_audio_ctx = _play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
+        auto& play_stream_video_ctx = _frameCtxArr[AVMEDIA_TYPE_VIDEO].getFrameQueue();
+        auto& play_stream_audio_ctx = _frameCtxArr[AVMEDIA_TYPE_AUDIO].getFrameQueue();
 
-        PacketQueue._is_closed = true;
+        packetQueue._is_closed = true;
         play_stream_video_ctx._is_closed = true;
         play_stream_audio_ctx._is_closed = true;
 
-        PacketQueue._cv_could_push.notify_all();
-        PacketQueue._cv_could_pop.notify_all();
+        packetQueue._cv_could_push.notify_all();
+        packetQueue._cv_could_pop.notify_all();
         play_stream_audio_ctx._cv_could_push.notify_all();
         play_stream_audio_ctx._cv_could_pop.notify_all();
         play_stream_video_ctx._cv_could_push.notify_all();
         play_stream_video_ctx._cv_could_pop.notify_all();
 
-        if (ThrRead.joinable()) {
-            ThrRead.join();
+        if (thrRead.joinable()) {
+            thrRead.join();
         }
-        if (ThrDecode.joinable()) {
-            ThrDecode.join();
+        if (thrDecode.joinable()) {
+            thrDecode.join();
         }
         if (ThrPlay.joinable()) {
             ThrPlay.join();
         }
 
-        PacketQueue._is_closed = false;
+        packetQueue._is_closed = false;
         play_stream_audio_ctx._is_closed = false;
         play_stream_video_ctx._is_closed = false;
     }
@@ -231,7 +232,7 @@ namespace Mortis::Player::FFmpeg
 
     RESULT PlayTool::start_read_thread() noexcept
     {
-        ThrRead = std::jthread([this](std::stop_token st)->void
+        thrRead = std::jthread([this](std::stop_token st)->void
             {
                 std::stop_callback end_read_callback(st, [this]()->void {
                     spdlog::info("success exit read thread");
@@ -250,16 +251,16 @@ namespace Mortis::Player::FFmpeg
                             continue;
                         }
                     }
-                    PacketQueue.push(std::move(avp));
+                    packetQueue.push(std::move(avp));
                 }
             });
-        spdlog::info(std::format("create read thread id: {}", ThrRead.get_id()));
+        spdlog::info(std::format("create read thread id: {}", thrRead.get_id()));
         return SUCCESS;
     }
 
     RESULT PlayTool::start_decode_thread() noexcept
     {
-        ThrDecode = std::jthread([&](std::stop_token st)->void
+        thrDecode = std::jthread([&](std::stop_token st)->void
             {
                std::stop_callback end_read_callback(st, [this]()->void {
                    spdlog::info("success exit decode thread");
@@ -270,7 +271,7 @@ namespace Mortis::Player::FFmpeg
 
                 while (st.stop_requested() == false)
                 {
-                    auto _avp_optioal = PacketQueue.pop();
+                    auto _avp_optioal = packetQueue.pop();
 
                     if (_avp_optioal.has_value() == false) { 
                         std::this_thread::sleep_for(1ms);
@@ -283,29 +284,38 @@ namespace Mortis::Player::FFmpeg
                         continue;
                     }
 
-                    AVMediaType media_type = _stream_index_to_type[avp->stream_index];
+                    AVMediaType media_type = _indexToMediaType[avp->stream_index];
                     if (media_type == AVMEDIA_TYPE_VIDEO || media_type == AVMEDIA_TYPE_AUDIO)
                     {
                         {
                             std::unique_lock lock(this->decode_mutex);
-                            while ((err = avcodec_send_packet(_play_stream_ctx[media_type]._pCodecCtx, avp)) == AVERROR(EAGAIN))
+                            while ((err = avcodec_send_packet(_frameCtxArr[media_type].getCodecCtx(), avp)) == AVERROR(EAGAIN)) {
                                 std::this_thread::sleep_for(1ms);
+                            }
                         }
 
 
                         while (st.stop_requested() == false)
                         {
-                            err = avcodec_receive_frame(_play_stream_ctx[media_type]._pCodecCtx, avf);
-                            if (err == 0)insert_queue(media_type,std::move(avf));
-                            else if (err == AVERROR(EAGAIN)) break;
-                            else if (err == AVERROR_EOF) continue;
-                            else return;
+                            err = avcodec_receive_frame(_frameCtxArr[media_type].getCodecCtx(), avf);
+                            if (err == 0) {
+                                insert_queue(media_type, std::move(avf));
+                            }
+                            else if (err == AVERROR(EAGAIN)) {
+                                break;
+                            }
+                            else if (err == AVERROR_EOF) {
+                                continue;
+                            }
+                            else {
+								throw std::runtime_error("decode error!!!");
+                            }
                         }
                     }
                     else {}
                 }
             });
-       spdlog::info(std::format("create decode thread id: {}", ThrDecode.get_id()));
+       spdlog::info(std::format("create decode thread id: {}", thrDecode.get_id()));
         return SUCCESS;
     }
 

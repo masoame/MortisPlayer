@@ -82,14 +82,14 @@ namespace Mortis::Player::SDL
 				auto& frame = play_tool.avframe_work[AVMEDIA_TYPE_VIDEO].first;
 				auto& audio_ptr = play_tool.avframe_work[AVMEDIA_TYPE_AUDIO];
 
-				auto& play_stream_ctx = play_tool._play_stream_ctx;
+				auto& play_stream_ctx = play_tool._frameCtxArr;
 				//时间基准
-				auto& secBaseVideo = play_stream_ctx[AVMEDIA_TYPE_VIDEO]._secBaseTime;
-				auto& secBaseAudio = play_stream_ctx[AVMEDIA_TYPE_AUDIO]._secBaseTime;
+				double secBaseVideo = play_stream_ctx[AVMEDIA_TYPE_VIDEO].getSecBaseTime();
+				double secBaseAudio = play_stream_ctx[AVMEDIA_TYPE_AUDIO].getSecBaseTime();
 
 				//画面帧队列
-				auto& video_queue = play_stream_ctx[AVMEDIA_TYPE_VIDEO]._frame_queue;
-				auto& audio_queue = play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue;
+				auto& video_queue = play_stream_ctx[AVMEDIA_TYPE_VIDEO].getFrameQueue();
+				auto& audio_queue = play_stream_ctx[AVMEDIA_TYPE_AUDIO].getFrameQueue();
 
 				//如果音频队列为空，则等待音频队列填充
 				while (audio_ptr.first == nullptr) {
@@ -244,7 +244,7 @@ namespace Mortis::Player::SDL
 		SDL_Event windowEvent;
 
 		//auto secBaseVideo = play_tool->secBaseTime[AVMEDIA_TYPE_VIDEO];
-		auto secBaseAudio = play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._secBaseTime;
+		auto secBaseAudio = play_tool._frameCtxArr[AVMEDIA_TYPE_AUDIO].getSecBaseTime();
 
         while (true)
 		{
@@ -289,7 +289,7 @@ namespace Mortis::Player::SDL
 		//清空流
 		if (_this->audio_buflen == 0)
 		{
-			auto tmp_audio_frame = _this->play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._frame_queue.pop();
+			auto tmp_audio_frame = _this->play_tool._frameCtxArr[AVMEDIA_TYPE_AUDIO].getFrameQueue().pop();
 			if(tmp_audio_frame.has_value() == false) return;
 
 			audio_frame = std::move(tmp_audio_frame.value());
@@ -315,7 +315,7 @@ namespace Mortis::Player::SDL
     void DriveWindow::InitAudio(SDL_AudioCallback callback)
 	{
 		SDL_CloseAudioDevice(device_id);
-		auto& audio_ctx = play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._pCodecCtx;
+		auto& audio_ctx = play_tool._frameCtxArr[AVMEDIA_TYPE_AUDIO].getCodecCtx();
 		AVSampleFormat* format;
 
 		avcodec_get_supported_config(audio_ctx, nullptr, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, (const void**)&format, nullptr);
@@ -354,7 +354,7 @@ namespace Mortis::Player::SDL
 		//抗锯齿
 		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 
-		auto& video_ctx = play_tool._play_stream_ctx[AVMEDIA_TYPE_VIDEO]._pCodecCtx;
+		auto& video_ctx = play_tool._frameCtxArr[AVMEDIA_TYPE_VIDEO].getCodecCtx();
 
 		if (SDL_Init(SDL_INIT_VIDEO)) throw "SDL_init error";
 

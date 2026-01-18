@@ -87,6 +87,7 @@ namespace ParseJson
 				return {};
 			}
 		}
+
 		inline VideoQuality QualitiesToId(const ::nlohmann::json& bilibili_json, std::string_view quality) noexcept
 		{
 			for (auto& _video_data : bilibili_json["support_formats"]) {

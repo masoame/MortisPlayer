@@ -3,10 +3,10 @@
 
 namespace Mortis::Player::FFmpeg
 {
-	using bounded_queue_packet = bounded_queue<ScopeAVPacketPtr>;
-	using bounded_queue_frame = bounded_queue<std::pair<ScopeAVFramePtr, std::unique_ptr<char[]>>>;
+	constexpr unsigned char AVMediaTypeCOUNT = 6;
 
-
+	using PacketQueue = bounded_queue<ScopeAVPacketPtr>;
+	using FrameQueue = bounded_queue<std::pair<ScopeAVFramePtr, std::unique_ptr<char[]>>>;
 	//函数回调类型
 	using insert_callback_type = std::function<void(AVFrame*&, char*& buf)>;
 
@@ -37,24 +37,45 @@ namespace Mortis::Player::FFmpeg
 	//播放工具类
 	class PlayTool : public Mortis::Singleton<PlayTool>
 	{
+		class FrameStreamContext
+		{
+			ScopeAVCodecContextPtr _pCodecCtx;
+			FrameQueue _frameQueue;
+			double _dSecBaseTime;
+			int _iStream;
+		public:
+			FrameStreamContext();
+			void onceInit(ScopeAVCodecContextPtr&& pCodeCtx, std::size_t nQueueSize, double dSecBaseTime, int iStreamIdx);
+			double getSecBaseTime() const noexcept { return _dSecBaseTime; }
+			const ScopeAVCodecContextPtr& getCodecCtx() const noexcept { return _pCodecCtx; }
+			FrameQueue& getFrameQueue() noexcept { return _frameQueue; }
+			int getStreamIndex() const noexcept { return _iStream; }
+		};
+	private:
+		ScopeAVFormatContextPtr pAVFmtStream;
+		std::mutex decode_mutex;
+
+		//图像帧转化上下文/音频解码上下文
+		ScopeSwsContextPtr sws_ctx;
+		ScopeSwrContextPtr swr_ctx;
+
 	public:
+		std::array<WorkFrame, AVMediaTypeCOUNT> avframe_work;
+		std::jthread thrRead;
+		std::jthread thrDecode;
+		std::jthread ThrPlay;
+		std::array<FrameStreamContext, AVMediaTypeCOUNT> _frameCtxArr;
+		std::map<int, AVMediaType> _indexToMediaType;
+
+		std::array<std::function<void(ScopeAVFramePtr&, char*&)>, 6> insert_callback;
+
+
 		PlayTool();
 		~PlayTool();
 
-		bounded_queue_packet PacketQueue{ 10 };
-		class PlaySreamContext
-		{
-			ScopeAVCodecContextPtr _pCodecCtx;
-			bounded_queue_frame _frame_queue;
-			double _secBaseTime;
-			int _index;
-		public:
-			PlaySreamContext();
-			void onceInit(ScopeAVCodecContextPtr&& pCodeCtx, bounded_queue_frame frameQuque);
-		};
-
-		std::array<PlaySreamContext,6> _play_stream_ctx;
-		std::map<int, AVMediaType> _stream_index_to_type;
+		PacketQueue packetQueue{ 10 };
+		
+		const ScopeAVFormatContextPtr& avFmtStream() const noexcept { return pAVFmtStream;}
 
 		//打开流
         bool open(std::string_view srcUrl, std::string_view dstUrl = {},int mode = in | video | audio);
@@ -86,37 +107,7 @@ namespace Mortis::Player::FFmpeg
 		void seek_time(int64_t usec)noexcept;
 
 		void close()noexcept;
-	public:
-
-		//输入输出格式指针
-		ScopeAVFormatContextPtr pAVFmtStream, _p_avfctx_output;
-
-		//解码上下文指针
-		std::mutex decode_mutex;
-
-
-		//图像帧转化上下文
-		ScopeSwsContextPtr sws_ctx;
-		//音频解码上下文
-		ScopeSwrContextPtr swr_ctx;
-
-		//各个工作帧
-		WorkFrame avframe_work[6];
-
-		std::array<std::function<void(ScopeAVFramePtr&, char*&)>,6> insert_callback;
-
-		// AVTypeToStreamIndex[流类型] == 流的索引
-		int AVTypeToStreamIndex[6]{ -1,-1,-1,-1,-1,-1 };
-
-		//读取Packet线程
-		std::jthread ThrRead;
-
-		//解码Packet线程
-		std::jthread ThrDecode;
-
-		// 播放线程
-		std::jthread ThrPlay;
-
+	
 	};
 }
 

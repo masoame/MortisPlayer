@@ -73,7 +73,7 @@ void HoloMainWindow::timerEvent([[maybe_unused]] QTimerEvent * event)
     auto& audio_ptr = this->_drivewindows.play_tool.avframe_work[AVMEDIA_TYPE_AUDIO].first;
     if(audio_ptr==nullptr)return;
     if(ui->time_slider->isSliderDown() == false){
-        int sec=audio_ptr->pts * this->_drivewindows.play_tool._play_stream_ctx[AVMEDIA_TYPE_AUDIO]._secBaseTime;
+        int sec=audio_ptr->pts * this->_drivewindows.play_tool._frameCtxArr[AVMEDIA_TYPE_AUDIO].getSecBaseTime();
         ui->timestamp->setText(QString::asprintf("%02d:%02d", sec / 60, sec % 60));
         ui->time_slider->setValue(sec);
     }
@@ -117,7 +117,7 @@ void HoloMainWindow::StartOpenFile()
 
     _drivewindows.InitPlayer(ui->openGLWidget->width(), ui->openGLWidget->height(),reinterpret_cast<void*>(ui->openGLWidget->winId()));
     _drivewindows.StartPlayer();
-    auto sec = _drivewindows.play_tool.pAVFmtStream->duration / AV_TIME_BASE;
+    auto sec = _drivewindows.play_tool.avFmtStream()->duration / AV_TIME_BASE;
     ui->total_time->setText(QString::number(sec / 60) + ":" + QString::number(sec % 60));
     ui->time_slider->setSliderPosition(0);
     ui->time_slider->setMaximum(sec);
